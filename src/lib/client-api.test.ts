@@ -9,7 +9,7 @@ const stream = (events: unknown[]) => new Response(events.map((e) => JSON.string
 afterEach(() => vi.unstubAllGlobals());
 
 describe('客户端搜索批次与流恢复', () => {
-  it.each([false, true])('超过50源全部参与且顺序分批（流式=%s）', async (streaming) => {
+  it.each([false, true])('101源全部参与且每批最多4个、顺序执行（流式=%s）', async (streaming) => {
     let active = 0;
     let maxActive = 0;
     const batches: string[][] = [];
@@ -25,7 +25,7 @@ describe('客户端搜索批次与流恢复', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
     const result = await api.search('测试片', sources(101), true, streaming ? { onSource: vi.fn() } : undefined);
-    expect(batches.map((b) => b.length)).toEqual([50, 50, 1]);
+    expect(batches.map((b) => b.length)).toEqual([...Array(25).fill(4), 1]);
     expect(batches.flat()).toEqual(sources(101).map((s) => s.key));
     expect(maxActive).toBe(1);
     expect(result.list.map((r) => r.sourceKey)).toEqual(['s100']);

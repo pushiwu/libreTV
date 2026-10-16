@@ -283,7 +283,10 @@ async function searchStream(
     (batch) => searchStreamBatch(wd, batch, filterAdult, onSource, signal));
 }
 
-/** 每批不超过服务端的 50 源上限，顺序发送以限制 Cloudflare 出网并发。 */
+/** 每源还会进行 DNS 校验及分页请求，小批次避免耗尽 Worker 子请求预算。 */
+const SEARCH_BATCH_SIZE = 4;
+
+/** 顺序发送小批次，限制单次 Cloudflare 调用的子请求数量。 */
 async function searchBatches(
   wd: string,
   sources: SourceConfig[],
@@ -291,11 +294,11 @@ async function searchBatches(
   signal: AbortSignal | undefined,
   run: (batch: SourceConfig[]) => Promise<SearchResponse>
 ): Promise<SearchResponse> {
-  if (sources.length <= 50) return run(sources);
+  if (sources.length <= SEARCH_BATCH_SIZE) return run(sources);
   const results: SearchResponse[] = [];
-  for (let offset = 0; offset < sources.length; offset += 50) {
+  for (let offset = 0; offset < sources.length; offset += SEARCH_BATCH_SIZE) {
     signal?.throwIfAborted();
-    results.push(await run(sources.slice(offset, offset + 50)));
+    results.push(await run(sources.slice(offset, offset + SEARCH_BATCH_SIZE)));
   }
   signal?.throwIfAborted();
   return mergeSearchResults(results, wd, filterAdult);
