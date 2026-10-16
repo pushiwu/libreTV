@@ -1,6 +1,7 @@
 'use client';
 
 import type { SearchResponse, SearchStreamEvent, SourceSearchOutcome, VideoDetail, DoubanResponse, BangumiCalendarResponse, AuthStatusResponse, SourceConfig, SearchResultItem, LivePlaylistResponse, LiveEpgResponse, SourceListPayload } from './types';
+import { filterAdultResults, filterRelevantResults, normalizeTitle } from './cms-parser';
 
 /**
  * 客户端 API 封装。401 时触发全局事件打开登录框，
@@ -131,12 +132,12 @@ export const api = {
     const signal = opts?.signal;
     const onSource = opts?.onSource;
     if (!onSource) {
-      return request<SearchResponse>('/api/search', {
+      return searchBatches(wd, sources, filterAdult, signal, (batch) => request<SearchResponse>('/api/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wd, sources, filterAdult }),
+        body: JSON.stringify({ wd, sources: batch, filterAdult }),
         signal,
-      });
+      }));
     }
     return searchStream(wd, sources, filterAdult, onSource, signal);
   },
@@ -278,6 +279,54 @@ async function searchStream(
   onSource: (outcome: SourceSearchOutcome) => void,
   signal?: AbortSignal
 ): Promise<SearchResponse> {
+  return searchBatches(wd, sources, filterAdult, signal,
+    (batch) => searchStreamBatch(wd, batch, filterAdult, onSource, signal));
+}
+
+/** 每批不超过服务端的 50 源上限，顺序发送以限制 Cloudflare 出网并发。 */
+async function searchBatches(
+  wd: string,
+  sources: SourceConfig[],
+  filterAdult: boolean,
+  signal: AbortSignal | undefined,
+  run: (batch: SourceConfig[]) => Promise<SearchResponse>
+): Promise<SearchResponse> {
+  if (sources.length <= 50) return run(sources);
+  const results: SearchResponse[] = [];
+  for (let offset = 0; offset < sources.length; offset += 50) {
+    signal?.throwIfAborted();
+    results.push(await run(sources.slice(offset, offset + 50)));
+  }
+  signal?.throwIfAborted();
+  return mergeSearchResults(results, wd, filterAdult);
+}
+
+/** 批次及截断流使用与服务端相同的去重、过滤及排序规则。 */
+function mergeSearchResults(results: SearchResponse[], wd: string, filterAdult: boolean): SearchResponse {
+  const seen = new Set<string>();
+  let list = results.flatMap((r) => r.list).filter((item) => {
+    const key = `${item.sourceKey}_${item.vodId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  list = filterRelevantResults(filterAdultResults(list, filterAdult), wd);
+  const exact = normalizeTitle(wd);
+  list.sort((a, b) => {
+    const rank = (normalizeTitle(a.name || '') === exact ? 0 : 1) - (normalizeTitle(b.name || '') === exact ? 0 : 1);
+    return rank || (a.name || '').localeCompare(b.name || '', 'zh-Hans-CN') || (a.sourceName || '').localeCompare(b.sourceName || '', 'zh-Hans-CN');
+  });
+  return { list, failures: results.flatMap((r) => r.failures) };
+}
+
+async function searchStreamBatch(
+  wd: string,
+  sources: SourceConfig[],
+  filterAdult: boolean,
+  onSource: (outcome: SourceSearchOutcome) => void,
+  signal?: AbortSignal
+): Promise<SearchResponse> {
+  signal?.throwIfAborted();
   const res = await fetch('/api/search?stream=1', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -287,16 +336,30 @@ async function searchStream(
     throwForAuthStatus(res);
     if (!res.ok || !res.body) throw new ApiError(`请求失败 (${res.status})`, res.status);
 
-    // done 事件缺失（流被截断）时退化为空结果，不让整次搜索报错
-    let final: SearchResponse = { list: [], failures: [] };
-    await consumeNdjson<SearchStreamEvent>(res, (event) => {
+    let final: SearchResponse | undefined;
+    const outcomes = new Map<string, SourceSearchOutcome>();
+    try {
+      await consumeNdjson<SearchStreamEvent>(res, (event) => {
       if (event.type === 'source') {
+        outcomes.set(event.sourceKey, event);
         onSource(event);
       } else if (event.type === 'done') {
         final = { list: event.list, failures: event.failures };
       }
+      });
+    } catch (err) {
+      // 用户取消必须继续抛出，连接中断则保留此前已完成源的结果。
+      signal?.throwIfAborted();
+      if (err instanceof Error && err.name === 'AbortError') throw err;
+    }
+    signal?.throwIfAborted();
+    if (final) return final;
+    const failures: SearchFailure[] = sources.flatMap((source) => {
+      const outcome = outcomes.get(source.key);
+      if (outcome?.ok) return [];
+      return [{ sourceKey: source.key, error: outcome?.error || '搜索连接中断，源未完成，请重试', timedOut: outcome?.timedOut }];
     });
-    return final;
+    return mergeSearchResults([{ list: [...outcomes.values()].flatMap((o) => o.list), failures }], wd, filterAdult);
   }
 
 export type { SearchResponse, SearchResultItem };

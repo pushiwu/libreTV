@@ -390,3 +390,17 @@ describe('订阅整体开关', () => {
     expect(isInDisabledSubscription(store(), 'manual_0')).toBe(false);
   });
 });
+
+describe('subscription health follows URL', () => {
+ it('moves health on reorder and never transfers quarantine to a new endpoint', () => {
+  const sub='https://subscription.example.com/sources.json';
+  store().applySubscriptionSources(sub,list(['https://a.example.com/api','https://b.example.com/api']));
+  const [a,b]=store().customAPIs;
+  const bad={ok:false,failStreak:2,permanent:true,timestamp:100};const good={ok:true,failStreak:0,timestamp:101};
+  useAppStore.setState({sourceHealth:{[a.key]:bad,[b.key]:good}});
+  store().applySubscriptionSources(sub,list(['https://b.example.com/api','https://a.example.com/api']));
+  expect(store().sourceHealth[store().customAPIs[0].key]).toEqual(good);expect(store().sourceHealth[store().customAPIs[1].key]).toEqual(bad);
+  store().applySubscriptionSources(sub,list(['https://b.example.com/api','https://c.example.com/api']));
+  expect(store().sourceHealth[store().customAPIs[0].key]).toEqual(good);expect(store().sourceHealth[store().customAPIs[1].key]).toBeUndefined();
+ });
+});

@@ -1,0 +1,69 @@
+{
+  "name": "已验证点播源",
+  "sources": [
+    {
+      "name": "360 资源",
+      "url": "https://360zy.com/api.php/provide/vod"
+    },
+    {
+      "name": "高清 2K",
+      "url": "https://api.1080zyku.com/inc/apijson.php"
+    },
+    {
+      "name": "百度",
+      "url": "https://api.apibdzy.com/api.php/provide/vod?ac=list"
+    },
+    {
+      "name": "光速资源 切",
+      "url": "https://api.guangsuapi.com/api.php/provide/vod"
+    },
+    {
+      "name": "新浪资源",
+      "url": "https://api.xinlangapi.com/xinlangapi.php/provide//vod"
+    },
+    {
+      "name": "暴风",
+      "url": "https://bfzyapi.com/api.php/provide/vod"
+    },
+    {
+      "name": "非凡资源",
+      "url": "http://cj.ffzyapi.com/api.php/provide/vod"
+    },
+    {
+      "name": "影视 量子 直连",
+      "url": "https://cj.lziapi.com/api.php/provide/vod"
+    },
+    {
+      "name": "影视 非凡 直连",
+      "url": "http://ffzy.tv/api.php/provide/vod"
+    },
+    {
+      "name": "非凡 资源",
+      "url": "http://ffzy1.tv/api.php/provide/vod"
+    },
+    {
+      "name": "火狐采集",
+      "url": "https://hhzyapi.com/api.php/provide/vod"
+    },
+    {
+      "name": "爱坤 资源",
+      "url": "https://ikunzyapi.com/api.php/provide/vod"
+    },
+    {
+      "name": "极速 采集",
+      "url": "https://jszyapi.com/api.php/provide/vod"
+    },
+    {
+      "name": "金鹰 影视",
+      "url": "https://jyzyapi.com/provide/vod"
+    },
+    {
+      "name": "红牛资源 切",
+      "url": "https://www.hongniuzy2.com/api.php/provide/vod"
+    },
+    {
+      "name": "虎牙采集",
+      "url": "https://www.huyaapi.com/api.php/provide/vod/from/hym3u8"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { guardRequest } from '@/lib/api-guard';
+import { cmsApiUrl } from '@/lib/cms-url';
 import { cmsRequestHeaders, filterAdultResults, filterRelevantResults, normalizeTitle, parseSearchList } from '@/lib/cms-parser';
 import { fetchUpstream, getCache, setCache } from '@/lib/fetch-utils';
 import { checkUpstreamAllowed } from '@/lib/ssrf';
@@ -18,7 +19,7 @@ const SEARCH_CACHE_TTL = 60 * 1000;
 
 /** 缓存键：wd + 成人过滤 + 排序后的源地址集合（直接用完整字符串，避免哈希碰撞串缓存） */
 function searchCacheKey(wd: string, sources: SourceConfig[], filterAdult: boolean): string {
-  const urls = sources.map((s) => s.url.replace(/\/+$/, '')).sort().join('|');
+  const urls = JSON.stringify(sources.map((s) => [s.key, s.name, s.url.replace(/\/+$/, '')]).sort());
   return `search:${wd}\n${filterAdult ? 1 : 0}\n${urls}`;
 }
 
@@ -90,9 +91,8 @@ async function searchSource(source: SourceConfig, wd: string): Promise<SourceSea
     }, SEARCH_SOURCE_TIMEOUT_MS);
   });
 
-  const base = source.url.replace(/\/+$/, '');
   const fetchPage = async (page: number) => {
-    const api = `${base}?ac=videolist&wd=${encodeURIComponent(wd)}&pg=${page}`;
+    const api = cmsApiUrl(source.url, { ac: 'videolist', wd, pg: String(page) });
     const res = await fetchUpstream(api, {
       timeoutMs: 8000,
       headers: cmsRequestHeaders(),

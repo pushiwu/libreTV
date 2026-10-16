@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { cmsApiUrl } from '@/lib/cms-url';
 import { guardRequest } from '@/lib/api-guard';
 import { cmsRequestHeaders, parseDetail, parseDetailPageHtml } from '@/lib/cms-parser';
 import { fetchUpstream, getCache, setCache } from '@/lib/fetch-utils';
@@ -59,7 +60,7 @@ export async function GET(req: Request) {
     let resolved: VideoDetail | null = null;
 
     // 1) 标准列表接口
-    const api = `${source.url.replace(/\/+$/, '')}?ac=videolist&ids=${encodeURIComponent(id)}`;
+    const api = cmsApiUrl(source.url, { ac: 'videolist', ids: id });
     const res = await fetchUpstream(api, { timeoutMs: 10000, headers: cmsRequestHeaders() });
     if (res.ok) {
       const data = await res.json();

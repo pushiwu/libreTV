@@ -453,6 +453,17 @@ export const useAppStore = create<AppState>()(
           ...s,
           key: `${prefix}_${i}`,
         }));
+        // A reordered subscription reuses numeric keys. Move health by URL so a
+        // replacement endpoint never inherits another endpoint's quarantine.
+        const previousHealth = new Map(
+          prevOwned.map((s) => [s.url.replace(/\/+$/, ''), get().sourceHealth[s.key]])
+        );
+        const sourceHealth = { ...get().sourceHealth };
+        for (const source of prevOwned) delete sourceHealth[source.key];
+        for (const source of incoming) {
+          const health = previousHealth.get(source.url.replace(/\/+$/, ''));
+          if (health) sourceHealth[source.key] = health;
+        }
         // 新源自动勾选（成人过滤开启时跳过成人源），已有源维持原勾选状态
         const toSelect = incoming
           .filter((s) => {
@@ -463,6 +474,7 @@ export const useAppStore = create<AppState>()(
         set({
           customAPIs: [...keptCustom, ...incoming],
           selectedKeys: [...get().selectedKeys.filter((k) => !keyBelongsToSubscription(k, prefix)), ...toSelect],
+          sourceHealth,
         });
         return incoming.length;
       },

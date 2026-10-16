@@ -1,4 +1,5 @@
 import type { SourceConfig } from './types';
+import { createHash } from 'node:crypto';
 
 /**
  * 部署者通过 DEFAULT_SOURCES 环境变量预置的采集站。
@@ -23,7 +24,8 @@ export function getEnvSources(): SourceConfig[] {
         throw new Error(`第 ${i + 1} 项的 url 必须以 http:// 或 https:// 开头`);
       }
       return {
-        key: `env_${i}`,
+        // The identity must follow the endpoint, not its position in an updated list.
+        key: `env_${createHash('sha256').update(url.trim().replace(/\/+$/, '')).digest('hex').slice(0, 16)}`,
         name: name.trim(),
         url: url.trim().replace(/\/+$/, ''),
         detail: typeof detail === 'string' && detail.trim() ? detail.trim() : undefined,
